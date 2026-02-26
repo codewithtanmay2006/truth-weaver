@@ -37,47 +37,87 @@ export default function NetworkCanvas({ nodes, edges, width, height, onNodeClick
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
 
-    // Draw edges
-    ctx.lineWidth = 0.5;
+    // Draw edges with animated dash for active spread
     for (const edge of edges) {
       const a = nodes[edge.source];
       const b = nodes[edge.target];
       if (!a || !b) continue;
 
       const isActive = a.state === 'infected' || b.state === 'infected';
-      ctx.strokeStyle = isActive
-        ? 'rgba(239,68,68,0.3)'
+      const isSpreading = a.state === 'infected' && b.state === 'infected';
+
+      ctx.strokeStyle = isSpreading
+        ? 'rgba(239,68,68,0.5)'
+        : isActive
+        ? 'rgba(239,68,68,0.25)'
         : 'rgba(255,255,255,0.06)';
-      ctx.lineWidth = isActive ? 1.5 : 0.5;
+      ctx.lineWidth = isSpreading ? 2 : isActive ? 1.2 : 0.5;
+
+      if (isSpreading) {
+        ctx.setLineDash([4, 4]);
+        ctx.lineDashOffset = -tick * 2;
+      } else {
+        ctx.setLineDash([]);
+      }
 
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
       ctx.stroke();
     }
+    ctx.setLineDash([]);
 
     // Draw nodes
     for (const node of nodes) {
       const color = STATE_COLORS[node.state];
       const glow = STATE_GLOW[node.state];
-      const radius = node.state === 'infected' ? 7 + Math.sin(tick * 0.15) * 2 : 5;
+      const isInfected = node.state === 'infected';
+      const isAware = node.state === 'aware';
+      const isRecovered = node.state === 'recovered';
+      const radius = isInfected ? 7 + Math.sin(tick * 0.2) * 2.5 : isAware ? 6 : 5;
 
-      // Glow
+      // Outer glow ring
+      const glowRadius = isInfected ? radius + 14 : isAware ? radius + 10 : radius + 6;
       ctx.beginPath();
-      ctx.arc(node.x, node.y, radius + 8, 0, Math.PI * 2);
+      ctx.arc(node.x, node.y, glowRadius, 0, Math.PI * 2);
       ctx.fillStyle = glow;
       ctx.fill();
 
-      // Node
+      // Inner glow
+      if (isInfected || isAware) {
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, radius + 4, 0, Math.PI * 2);
+        ctx.fillStyle = isInfected ? 'rgba(239,68,68,0.25)' : 'rgba(234,179,8,0.2)';
+        ctx.fill();
+      }
+
+      // Node body
       ctx.beginPath();
       ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
       ctx.fillStyle = color;
       ctx.fill();
 
+      // Highlight dot
+      ctx.beginPath();
+      ctx.arc(node.x - radius * 0.3, node.y - radius * 0.3, radius * 0.25, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.fill();
+
       // Border
-      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-      ctx.lineWidth = 0.5;
+      ctx.strokeStyle = isRecovered ? 'rgba(59,130,246,0.4)' : 'rgba(255,255,255,0.15)';
+      ctx.lineWidth = isRecovered ? 1 : 0.5;
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
       ctx.stroke();
+
+      // Shield icon for aware nodes
+      if (isAware) {
+        ctx.fillStyle = 'rgba(234,179,8,0.8)';
+        ctx.font = `${radius}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('✦', node.x, node.y);
+      }
     }
   }, [nodes, edges, width, height, tick, dpr]);
 
@@ -89,11 +129,13 @@ export default function NetworkCanvas({ nodes, edges, width, height, onNodeClick
     if (!onNodeClick) return;
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const scaleX = width / rect.width;
+    const scaleY = height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
 
     for (const node of nodes) {
-      if (Math.hypot(node.x - x, node.y - y) < 15) {
+      if (Math.hypot(node.x - x, node.y - y) < 20) {
         onNodeClick(node.id);
         break;
       }
