@@ -49,18 +49,21 @@ export default function Index() {
     initNetwork();
   }, [initNetwork]);
 
+  const tickRef = useRef(0);
+  tickRef.current = tick;
+
   useEffect(() => {
     if (isRunning) {
       intervalRef.current = setInterval(() => {
-        setTick(prev => prev + 1);
+        const currentTick = tickRef.current + 1;
+        setTick(currentTick);
         setNodes(prev => {
-          const next = simulationTick(prev, DEFAULT_CONFIG, tick + 1);
-          const stats = getStats(next, tick + 1);
+          const next = simulationTick(prev, DEFAULT_CONFIG, currentTick);
+          const stats = getStats(next, currentTick);
           setHistory(h => {
             const newH = [...h, stats];
             return newH.length > 200 ? newH.slice(-200) : newH;
           });
-          // Stop if no infected left
           if (stats.infected === 0) {
             setIsRunning(false);
           }
@@ -71,7 +74,7 @@ export default function Index() {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [isRunning, speed, tick]);
+  }, [isRunning, speed]);
 
   const handleNodeClick = (nodeId: number) => {
     if (factCheckMode) {
