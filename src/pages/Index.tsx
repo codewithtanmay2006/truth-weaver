@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
+import { toast } from 'sonner';
 import NetworkCanvas from '@/components/NetworkCanvas';
 import StatsPanel from '@/components/StatsPanel';
 import SpreadChart from '@/components/SpreadChart';
@@ -74,13 +75,28 @@ export default function Index() {
 
   const handleNodeClick = (nodeId: number) => {
     if (factCheckMode) {
+      const node = nodes[nodeId];
       setNodes(prev => applyFactCheck(prev, nodeId));
       setFactCheckMode(false);
+      if (node?.state === 'infected') {
+        toast.success('Fact-check applied!', {
+          description: `Node ${nodeId} has been fact-checked. Nearby nodes may become aware.`,
+        });
+      } else {
+        toast.info('Node was not infected', {
+          description: `Node ${nodeId} is ${node?.state}. Neighbors may still gain awareness.`,
+        });
+      }
     }
   };
 
   const handleAwareness = () => {
+    const healthyBefore = nodes.filter(n => n.state === 'healthy').length;
     setNodes(prev => applyAwarenessCampaign(prev));
+    const affected = Math.ceil(healthyBefore * 0.2);
+    toast.success('Awareness campaign launched!', {
+      description: `~${affected} healthy nodes are now aware and immune to misinformation.`,
+    });
   };
 
   const currentStats = nodes.length > 0 ? getStats(nodes, tick) : { tick: 0, healthy: 0, infected: 0, recovered: 0, aware: 0 };
@@ -94,12 +110,24 @@ export default function Index() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <h1 className="text-2xl md:text-3xl font-bold font-mono text-primary text-glow-cyan tracking-tight">
-          Misinformation Spread Simulator
-        </h1>
-        <p className="text-sm text-muted-foreground font-mono mt-1">
+        <div className="flex items-center gap-3 mb-1">
+          <div className="w-3 h-3 rounded-full bg-primary animate-pulse-glow" />
+          <h1 className="text-2xl md:text-3xl font-bold font-mono text-primary text-glow-cyan tracking-tight">
+            Misinformation Spread Simulator
+          </h1>
+        </div>
+        <p className="text-sm text-muted-foreground font-mono mt-1 ml-6">
           SIR-model network propagation · Click nodes to fact-check · Deploy interventions to slow the spread
         </p>
+        {factCheckMode && (
+          <motion.div
+            className="mt-3 ml-6 px-3 py-2 bg-primary/10 border border-primary/30 rounded-lg text-xs font-mono text-primary"
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            🎯 Fact-check mode active — click any node on the network to apply
+          </motion.div>
+        )}
       </motion.header>
 
       <div className="flex flex-col lg:flex-row gap-4">
@@ -125,16 +153,16 @@ export default function Index() {
             tick={tick}
           />
           {/* Legend */}
-          <div className="flex gap-4 mt-2 text-xs font-mono text-muted-foreground">
+          <div className="flex flex-wrap gap-x-5 gap-y-2 mt-3 text-xs font-mono text-muted-foreground">
             {[
-              { color: 'bg-sim-healthy', label: 'Healthy' },
-              { color: 'bg-sim-infected', label: 'Infected' },
-              { color: 'bg-sim-recovered', label: 'Fact-Checked' },
-              { color: 'bg-sim-aware', label: 'Aware' },
-            ].map(({ color, label }) => (
-              <span key={label} className="flex items-center gap-1.5">
-                <span className={`w-2.5 h-2.5 rounded-full ${color}`} />
-                {label}
+              { color: 'bg-sim-healthy', label: 'Healthy', desc: 'Susceptible' },
+              { color: 'bg-sim-infected', label: 'Infected', desc: 'Spreading misinfo' },
+              { color: 'bg-sim-recovered', label: 'Fact-Checked', desc: 'Immune' },
+              { color: 'bg-sim-aware', label: 'Aware', desc: 'Inoculated' },
+            ].map(({ color, label, desc }) => (
+              <span key={label} className="flex items-center gap-1.5" title={desc}>
+                <span className={`w-2.5 h-2.5 rounded-full ${color} ring-1 ring-white/10`} />
+                <span>{label}</span>
               </span>
             ))}
           </div>
